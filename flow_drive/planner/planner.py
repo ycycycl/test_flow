@@ -7,6 +7,7 @@ from shapely.geometry import Point
 from typing import Deque, Dict, List, Type, Optional, Tuple
 import uuid
 import glob
+import json
 
 warnings.filterwarnings("ignore")
 
@@ -101,6 +102,7 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
         render: bool = False,
         video_dir: str = None,
         emergency_brake_enabled: bool = True,
+        diagnostic_dir: str = None,
     ):
         assert device in ["cpu", "cuda"], f"device {device} not supported"
         if device == "cuda":
@@ -137,6 +139,18 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
 
         self._render = render
         self._video_dir = video_dir
+        self._diagnostic_dir = diagnostic_dir
+        self._initial_condition_recorded = False
+        self._diagnostic_selector_path = None
+        self._diagnostic_initial_path = None
+        if self._diagnostic_dir:
+            os.makedirs(self._diagnostic_dir, exist_ok=True)
+            self._diagnostic_selector_path = os.path.join(
+                self._diagnostic_dir, f"selector_frames_{self._planner_id}.jsonl"
+            )
+            self._diagnostic_initial_path = os.path.join(
+                self._diagnostic_dir, f"initial_condition_{self._planner_id}.json"
+            )
 
     def name(self) -> str:
         """
@@ -209,6 +223,62 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
 
         self._last_selector_tiebreak_info = info
         return selected_index
+
+    def _write_diagnostic_jsonl(self, path: str, record: Dict) -> None:
+        if not path:
+            return
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+
+    def _record_selector_diagnostic(self, scores: npt.ArrayLike, selected_index: int) -> None:
+        if not self._diagnostic_selector_path:
+            return
+        scores_array = np.asarray(scores, dtype=np.float64)
+        record = {
+            "iteration": int(self._iteration),
+            "selected_index": int(selected_index),
+            "scores": scores_array.tolist(),
+            "all_scores_zero": bool(np.allclose(scores_array, 0.0, atol=1e-12, rtol=0.0)),
+            "selector_action": (
+                self._last_selector_tiebreak_info or {}
+            ).get("selector_action", "argmax"),
+            "allzero_stop_applied": bool(
+                (self._last_selector_tiebreak_info or {}).get("allzero_stop_applied", False)
+            ),
+        }
+        self._write_diagnostic_jsonl(self._diagnostic_selector_path, record)
+
+    def _record_initial_condition_diagnostic(self, current_input: PlannerInput) -> None:
+        if self._initial_condition_recorded or not self._diagnostic_initial_path:
+            return
+        self._initial_condition_recorded = True
+        ego_state, _ = current_input.history.current_state
+        record = {
+            "iteration": int(self._iteration),
+            "rear_axle": {
+                "x": float(ego_state.rear_axle.x),
+                "y": float(ego_state.rear_axle.y),
+                "heading": float(ego_state.rear_axle.heading),
+            },
+            "speed_mps": float(ego_state.dynamic_car_state.rear_axle_velocity_2d.x),
+            "rear_axle_in_drivable_area": None,
+            "ego_footprint_intersects_drivable_area": None,
+            "drivable_area_tokens": [],
+            "error": None,
+        }
+        try:
+            drivable_area_map = get_drivable_area_map(
+                self._map_api, ego_state, self._trajectory_scorer._map_radius
+            )
+            rear_axle_tokens = list(drivable_area_map.intersects(Point(*ego_state.rear_axle.array)))
+            footprint_tokens = list(drivable_area_map.intersects(ego_state.car_footprint.geometry))
+            record["rear_axle_in_drivable_area"] = bool(rear_axle_tokens)
+            record["ego_footprint_intersects_drivable_area"] = bool(footprint_tokens)
+            record["drivable_area_tokens"] = sorted(set(map(str, rear_axle_tokens + footprint_tokens)))
+        except Exception as exc:
+            record["error"] = repr(exc)
+        with open(self._diagnostic_initial_path, "w", encoding="utf-8") as f:
+            json.dump(record, f, indent=2)
 
     def _build_stop_ego_states(self, ego_state: EgoState) -> List[EgoState]:
         horizon = float(self._future_horizon or 4.0)
@@ -326,6 +396,7 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
         Inherited.
         """
         set_seed(self._master_seed + self._iteration)  # Set seed for reproducibility
+        self._record_initial_condition_diagnostic(current_input)
 
         inputs = self.planner_input_to_model_inputs(current_input)
 
@@ -342,6 +413,7 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
             )  # (S, B, T, [x, y, heading]), B = 1
             scores, ego_states_list = self._trajectory_scorer.score_plans(outputs)
             index = self._select_post_process_plan_index(scores)
+            self._record_selector_diagnostic(scores, index)
             if index < 0:
                 ego_state, _ = current_input.history.current_state
                 ego_states = self._build_stop_ego_states(ego_state)
