@@ -14,7 +14,7 @@ from nuplan.common.maps.abstract_map import AbstractMap
 from nuplan.common.maps.maps_datatypes import SemanticMapLayer
 from nuplan.common.actor_state.ego_state import EgoState
 from nuplan.common.utils.interpolatable_state import InterpolatableState
-from nuplan.common.actor_state.state_representation import StateSE2
+from nuplan.common.actor_state.state_representation import StateSE2, StateVector2D, TimePoint
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
 from nuplan.planning.simulation.trajectory.abstract_trajectory import AbstractTrajectory
 from nuplan.planning.simulation.trajectory.interpolated_trajectory import (
@@ -129,6 +129,7 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
         self._trajectory_scorer = TrajectoryScorer(
             emergency_brake_enabled=emergency_brake_enabled
         )
+        self._last_selector_tiebreak_info = None
 
         self._params = load_params(
             os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
@@ -185,6 +186,139 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
         )
         return model_inputs
 
+    def _select_post_process_plan_index(self, scores: npt.ArrayLike) -> int:
+        scores_array = np.asarray(scores, dtype=np.float64)
+        selected_index = int(np.argmax(scores_array))
+        all_scores_zero = bool(np.allclose(scores_array, 0.0, atol=1e-12, rtol=0.0))
+        info = {
+            "selected_index": selected_index,
+            "original_argmax_index": selected_index,
+            "all_scores_zero": all_scores_zero,
+            "allzero_stop_applied": False,
+            "selector_action": "argmax",
+            "tiebreak_applied": False,
+            "safe_candidate_count": None,
+        }
+
+        if all_scores_zero:
+            selected_index = -1
+            info["selected_index"] = selected_index
+            info["allzero_stop_applied"] = True
+            info["selector_action"] = "kinematic_stop"
+            info["tiebreak_applied"] = True
+
+        self._last_selector_tiebreak_info = info
+        return selected_index
+
+    def _build_stop_ego_states(self, ego_state: EgoState) -> List[EgoState]:
+        horizon = float(self._future_horizon or 4.0)
+        step_interval = float(self._step_interval)
+        num_steps = max(1, int(round(horizon / step_interval)))
+        start_time_us = int(ego_state.time_us)
+        dt_us = int(round(step_interval * 1e6))
+        rear_axle = ego_state.rear_axle
+        vehicle_parameters = ego_state.car_footprint.vehicle_parameters
+        is_in_auto_mode = bool(getattr(ego_state, "is_in_auto_mode", True))
+        wheel_base = float(getattr(vehicle_parameters, "wheel_base", 3.089))
+        max_brake_deceleration = 3.8  # [m/s^2], matches the local post-process bound.
+        stop_speed_threshold = 0.05
+
+        x = float(rear_axle.x)
+        y = float(rear_axle.y)
+        heading = float(rear_axle.heading)
+        steering_angle = float(ego_state.tire_steering_angle)
+
+        velocity_2d = ego_state.dynamic_car_state.rear_axle_velocity_2d
+        signed_speed = float(velocity_2d.x)
+        abs_speed = abs(signed_speed)
+        direction = 1.0 if signed_speed >= 0.0 else -1.0
+        deceleration = (
+            max_brake_deceleration if abs_speed > stop_speed_threshold else 0.0
+        )
+        signed_acceleration = -direction * deceleration if deceleration > 0.0 else 0.0
+
+        states: List[EgoState] = [ego_state]
+        previous_angular_velocity = float(
+            getattr(ego_state.dynamic_car_state, "angular_velocity", 0.0)
+        )
+        speed = abs_speed
+
+        for step_idx in range(1, num_steps + 1):
+            if speed <= stop_speed_threshold or deceleration <= 0.0:
+                next_speed = 0.0
+                average_signed_speed = 0.0
+                angular_velocity = 0.0
+                angular_acceleration = -previous_angular_velocity / step_interval
+                acceleration_2d = StateVector2D(0.0, 0.0)
+            else:
+                next_speed = max(0.0, speed - deceleration * step_interval)
+                average_signed_speed = direction * 0.5 * (speed + next_speed)
+                angular_velocity = (
+                    direction * next_speed * np.tan(steering_angle) / wheel_base
+                    if wheel_base > 0.0
+                    else 0.0
+                )
+                angular_acceleration = (
+                    angular_velocity - previous_angular_velocity
+                ) / step_interval
+                acceleration_2d = StateVector2D(signed_acceleration, 0.0)
+
+            average_angular_velocity = 0.5 * (
+                previous_angular_velocity + angular_velocity
+            )
+            heading_midpoint = heading + 0.5 * average_angular_velocity * step_interval
+            x += average_signed_speed * np.cos(heading_midpoint) * step_interval
+            y += average_signed_speed * np.sin(heading_midpoint) * step_interval
+            heading = normalize_angle(heading + average_angular_velocity * step_interval)
+
+            states.append(
+                EgoState.build_from_rear_axle(
+                    rear_axle_pose=StateSE2(x, y, heading),
+                    rear_axle_velocity_2d=StateVector2D(direction * next_speed, 0.0),
+                    rear_axle_acceleration_2d=acceleration_2d,
+                    tire_steering_angle=steering_angle,
+                    time_point=TimePoint(start_time_us + step_idx * dt_us),
+                    vehicle_parameters=vehicle_parameters,
+                    is_in_auto_mode=is_in_auto_mode,
+                    angular_vel=angular_velocity,
+                    angular_accel=angular_acceleration,
+                    tire_steering_rate=0.0,
+                )
+            )
+            previous_angular_velocity = angular_velocity
+            speed = next_speed
+
+        return states
+
+    def _ego_states_to_relative_plan(
+        self,
+        ego_states: List[EgoState],
+        anchor_ego_state: EgoState,
+        shape: Tuple[int, int],
+    ) -> np.ndarray:
+        relative_plan = np.zeros(shape, dtype=np.float64)
+        anchor = anchor_ego_state.rear_axle
+        anchor_x = float(anchor.x)
+        anchor_y = float(anchor.y)
+        anchor_heading = float(anchor.heading)
+        cos_heading = np.cos(anchor_heading)
+        sin_heading = np.sin(anchor_heading)
+        future_states = (
+            ego_states[1:]
+            if ego_states and ego_states[0] is anchor_ego_state
+            else ego_states
+        )
+
+        for idx, state in enumerate(future_states[: shape[0]]):
+            rear = state.rear_axle
+            dx = float(rear.x) - anchor_x
+            dy = float(rear.y) - anchor_y
+            relative_plan[idx, 0] = cos_heading * dx + sin_heading * dy
+            relative_plan[idx, 1] = -sin_heading * dx + cos_heading * dy
+            relative_plan[idx, 2] = normalize_angle(float(rear.heading) - anchor_heading)
+
+        return relative_plan
+
     def compute_planner_trajectory(
         self, current_input: PlannerInput
     ) -> AbstractTrajectory:
@@ -207,8 +341,12 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
                 inputs, speed_limit, self._speed_offsets, self._lateral_offset
             )  # (S, B, T, [x, y, heading]), B = 1
             scores, ego_states_list = self._trajectory_scorer.score_plans(outputs)
-            index = np.argmax(scores)
-            ego_states = ego_states_list[index]
+            index = self._select_post_process_plan_index(scores)
+            if index < 0:
+                ego_state, _ = current_input.history.current_state
+                ego_states = self._build_stop_ego_states(ego_state)
+            else:
+                ego_states = ego_states_list[index]
             trajectory = InterpolatedTrajectory(trajectory=ego_states)
         else:
             outputs = self._planner(inputs)
@@ -227,7 +365,14 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
                 for k, v in inputs.items()
             }
             if self._post_process > 0:
-                inputs_for_plotting["ego_plan"] = outputs[index, 0].cpu().numpy()
+                if index < 0:
+                    ego_state, _ = current_input.history.current_state
+                    plan_shape = outputs[0, 0].cpu().numpy().shape
+                    inputs_for_plotting["ego_plan"] = self._ego_states_to_relative_plan(
+                        ego_states, ego_state, plan_shape
+                    )
+                else:
+                    inputs_for_plotting["ego_plan"] = outputs[index, 0].cpu().numpy()
             else:
                 inputs_for_plotting["ego_plan"] = outputs[0].cpu().numpy()
             fig_dir = os.path.join(self._video_dir, self._planner_id)
