@@ -75,7 +75,7 @@ def build_run_command(args: argparse.Namespace, run_dir: Path, token: str, log_n
         f"planner.flow_drive.post_mode={post_mode}",
         "planner.flow_drive.render=true",
         f"planner.flow_drive.video_dir={render_dir}",
-        f"planner.flow_drive.diagnostic_dir={diagnostic_dir}",
+        f"++planner.flow_drive.diagnostic_dir={diagnostic_dir}",
         f"scenario_builder={scenario_builder}",
         f"scenario_filter={args.split}",
         f"scenario_filter.scenario_tokens={list_value([token])}",
@@ -308,13 +308,19 @@ def main() -> None:
     write_json(run_dir / "command.json", {"command": command, "post_mode": post_mode, "scenario_token": token, "log_name": log_name})
 
     env = os.environ.copy()
+    repo_root = Path(__file__).resolve().parents[1]
+    extra_pythonpath = [
+        str(repo_root),
+        *(str(Path(p)) for p in [args.nuplan_devkit_root or env.get("NUPLAN_DEVKIT_ROOT"), env.get("INTERPLAN_DEVKIT_ROOT")] if p),
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(extra_pythonpath + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
     env["NUPLAN_EXP_ROOT"] = str(run_dir / "nuplan_eval")
     if args.cuda_visible_devices is not None:
         env["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
 
     log_path = run_dir / "run_simulation.log"
     with open(log_path, "w", encoding="utf-8") as log_f:
-        proc = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], env=env, stdout=log_f, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.run(command, cwd=repo_root, env=env, stdout=log_f, stderr=subprocess.STDOUT, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"nuPlan simulation failed with exit code {proc.returncode}; see {log_path}")
 
