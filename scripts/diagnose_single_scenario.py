@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -116,6 +117,46 @@ def find_latest_aggregator(output_dir: Path) -> Path:
     if not files:
         raise FileNotFoundError(f"No aggregator_metric parquet found under {output_dir}")
     return files[-1]
+
+
+def ensure_aggregator_metric(args: argparse.Namespace, output_dir: Path, run_dir: Path, env: dict[str, str]) -> None:
+    if sorted(output_dir.rglob("aggregator_metric/*.parquet")):
+        return
+
+    metrics_dir = output_dir / "metrics"
+    metric_files = sorted(metrics_dir.glob("*.parquet"))
+    if not metric_files:
+        return
+
+    challenge_metrics_dir = metrics_dir / args.challenge
+    challenge_metrics_dir.mkdir(parents=True, exist_ok=True)
+    for metric_file in metric_files:
+        shutil.copy2(metric_file, challenge_metrics_dir / metric_file.name)
+
+    nuplan_root = Path(args.nuplan_devkit_root or env.get("NUPLAN_DEVKIT_ROOT", ""))
+    aggregator_script = nuplan_root / "nuplan" / "planning" / "script" / "run_metric_aggregator.py"
+    if not aggregator_script.exists():
+        raise FileNotFoundError(f"Missing nuPlan run_metric_aggregator.py: {aggregator_script}")
+
+    command = [
+        sys.executable,
+        str(aggregator_script),
+        f"output_dir={output_dir}",
+        f"metric_aggregator=[{args.challenge}_weighted_average]",
+        "challenges=[]",
+    ]
+    log_path = run_dir / "run_metric_aggregator.log"
+    with open(log_path, "w", encoding="utf-8") as log_f:
+        proc = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(f"nuPlan metric aggregation failed with exit code {proc.returncode}; see {log_path}")
 
 
 def normalize_progress(row: dict[str, Any]) -> None:
@@ -330,6 +371,7 @@ def main() -> None:
         raise RuntimeError(f"nuPlan simulation failed with exit code {proc.returncode}; see {log_path}")
 
     output_dir = run_dir / "nuplan_eval"
+    ensure_aggregator_metric(args, output_dir, run_dir, env)
     score_detail = load_score_detail(output_dir, token)
     metric_details = collect_metric_file_details(output_dir, token)
     selector_detail = read_selector_diagnostics(run_dir / "diagnostics")
