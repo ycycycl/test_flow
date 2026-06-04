@@ -59,6 +59,11 @@ def build_run_command(args: argparse.Namespace, run_dir: Path, token: str, log_n
     if not args.dry_run and not run_script.exists():
         raise FileNotFoundError(f"Missing nuPlan run_simulation.py: {run_script}")
 
+    repo_root = Path(__file__).resolve().parents[1]
+    ckpt_path = Path(args.ckpt_path)
+    if not ckpt_path.is_absolute():
+        ckpt_path = repo_root / ckpt_path
+
     output_dir = run_dir / "nuplan_eval"
     render_dir = run_dir / "flowdrive_render"
     diagnostic_dir = run_dir / "diagnostics"
@@ -68,7 +73,7 @@ def build_run_command(args: argparse.Namespace, run_dir: Path, token: str, log_n
         str(run_script),
         f"+simulation={args.challenge}",
         "planner=flow_drive",
-        f"planner.flow_drive.ckpt_path={args.ckpt_path}",
+        f"planner.flow_drive.ckpt_path={ckpt_path}",
         f"planner.flow_drive.mlflow_exp_name={args.mlflow_exp_name}",
         f"planner.flow_drive.load_run_name={args.load_run_name}",
         f"planner.flow_drive.load_epoch={args.load_epoch}",
