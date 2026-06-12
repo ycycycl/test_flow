@@ -11,3 +11,19 @@ flow_drive:
   render: False
   video_dir: None
   emergency_brake_enabled: True
+  risk_attn:
+    enabled: False
+    logit_scale: 0.0
+    distance_weight: 1.0
+    ttc_weight: 1.0
+    predicted_distance_weight: 1.0
+    distance_sigma: 10.0
+    ttc_sigma: 4.0
+    predicted_distance_sigma: 5.0
+    risk_clip: 3.0
+    prediction_horizon_steps: null
+    dt: 0.1
+    use_box_clearance: True
+    ego_width: 2.0
+    ego_length: 4.8
+    eps: 0.001

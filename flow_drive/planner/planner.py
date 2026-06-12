@@ -3,6 +3,7 @@ import warnings
 import torch
 import numpy as np
 import numpy.typing as npt
+from box import ConfigBox
 from shapely.geometry import Point
 from typing import Deque, Dict, List, Type, Optional, Tuple
 import uuid
@@ -101,6 +102,7 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
         render: bool = False,
         video_dir: str = None,
         emergency_brake_enabled: bool = True,
+        risk_attn: Optional[Dict] = None,
     ):
         assert device in ["cpu", "cuda"], f"device {device} not supported"
         if device == "cuda":
@@ -136,6 +138,14 @@ class FlowDrivePlannerWrapper(AbstractPlanner):
 
         self._render = render
         self._video_dir = video_dir
+        if risk_attn is not None:
+            base_risk_attn = self._params.get("risk_attn", {})
+            if hasattr(base_risk_attn, "to_dict"):
+                merged_risk_attn = base_risk_attn.to_dict()
+            else:
+                merged_risk_attn = dict(base_risk_attn)
+            merged_risk_attn.update(risk_attn)
+            self._params.risk_attn = ConfigBox(merged_risk_attn)
 
     def name(self) -> str:
         """

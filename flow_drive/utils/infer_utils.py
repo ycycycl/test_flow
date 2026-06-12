@@ -172,6 +172,10 @@ def sample_action_with_speed_and_lateral_offsets(
     expanded_scene_embedding["mask"] = (
         obs_cond["mask"][None, :, :].expand(S, -1, -1).reshape(S * B, N)
     )
+    if obs_cond.get("attn_bias", None) is not None:
+        expanded_scene_embedding["attn_bias"] = (
+            obs_cond["attn_bias"][None, :, :].expand(S, -1, -1).reshape(S * B, N)
+        )
 
     history = [x_t[:, 1:, :]]
     float_ts = sampler.timesteps  # e.g. tensor([σ_T, σ_t2, σ_t1, ...])

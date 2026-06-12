@@ -90,11 +90,12 @@ class DiTBlock(nn.Module):
             nn.Linear(mlp_hidden_dim, dim),
         )
 
-    def forward(self, x, cross_c, t, key_padding_mask):
+    def forward(self, x, cross_c, t, key_padding_mask, attn_bias=None):
         # x: (B, P, D) - input sequence
         # cross_c: (B, N, D) - cross attention conditioning
         # t: (B, D) - timestep embedding
         # key_padding_mask: (B, N) - mask for cross attention
+        # attn_bias: optional float logit bias for cross attention, shaped (B, N) or (B, P, N)
 
         mask = ~key_padding_mask.unsqueeze(-1)
         valid_counts = mask.sum(dim=1).clamp(min=1)
@@ -115,9 +116,25 @@ class DiTBlock(nn.Module):
         modulated_x = modulate(self.norm2(x), shift_mlp, scale_mlp)
         x = x + gate_mlp.unsqueeze(1) * self.mlp1(modulated_x)
 
-        x = self.cross_attn(
-            self.norm3(x), cross_c, cross_c, key_padding_mask=key_padding_mask
-        )[0]
+        cross_attn_kwargs = {"key_padding_mask": key_padding_mask}
+        if attn_bias is not None:
+            B, P, _ = x.shape
+            N = cross_c.shape[1]
+            if attn_bias.dim() == 2:
+                attn_bias = attn_bias[:, None, :].expand(-1, P, -1)
+            elif attn_bias.dim() == 3 and attn_bias.shape[1] == 1:
+                attn_bias = attn_bias.expand(-1, P, -1)
+            if attn_bias.shape != (B, P, N):
+                raise ValueError(
+                    f"attn_bias must have shape {(B, P, N)}, got {tuple(attn_bias.shape)}"
+                )
+            attn_bias = attn_bias.to(device=x.device, dtype=x.dtype)
+            # PyTorch expects per-sample 3D masks as (B * num_heads, target_len, source_len).
+            cross_attn_kwargs["attn_mask"] = attn_bias.repeat_interleave(
+                self.cross_attn.num_heads, dim=0
+            ).contiguous()
+
+        x = self.cross_attn(self.norm3(x), cross_c, cross_c, **cross_attn_kwargs)[0]
         x = x + self.mlp2(self.norm4(x))
         return x
 
@@ -221,8 +238,11 @@ class DiT(nn.Module):
         timesteps = timesteps.expand(sample.shape[0]).view(B)
         time_emb = self.t_embedder(timesteps)  # (B, D)
 
+        attn_bias = global_cond.get("attn_bias", None)
         for block in self.blocks:
-            x = block(x, global_cond["encoding"], time_emb, global_cond["mask"])
+            x = block(
+                x, global_cond["encoding"], time_emb, global_cond["mask"], attn_bias
+            )
 
         x = self.final_layer(x, time_emb)
         return x
