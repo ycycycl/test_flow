@@ -1,0 +1,10 @@
+diff --git a/.gitignore b/.gitignore
+index ad4a1f1..697aa3f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -174,3 +174,4 @@ poetry.toml
+ pyrightconfig.json
+ 
+ # End of https://www.toptal.com/developers/gitignore/api/python
++experiments
+\ No newline at end of file

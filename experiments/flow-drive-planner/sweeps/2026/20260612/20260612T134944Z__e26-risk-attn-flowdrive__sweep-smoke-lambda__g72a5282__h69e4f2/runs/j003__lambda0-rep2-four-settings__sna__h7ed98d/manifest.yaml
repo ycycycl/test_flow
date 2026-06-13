@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "status": "planned",
+  "run_id": "j003__lambda0-rep2-four-settings__sna__h7ed98d",
+  "project_slug": "flow-drive-planner",
+  "created_utc": "2026-06-12T13:49:44Z",
+  "updated_utc": "2026-06-12T13:49:44Z",
+  "owner": "codex",
+  "purpose": {
+    "task": "e26-risk-attn-flowdrive",
+    "variant": "lambda0-rep2-four-settings",
+    "question": "Validate or evaluate E26 training-free risk-based attention on FlowDrive.",
+    "hypothesis": "A moderate risk-attention logit bias can improve closed-loop collision/TTC related behavior without excessive progress loss in post_mode=0."
+  },
+  "code": {
+    "repo_root": "D:/YCL/Scientific/260530_FlowDrive/flow_drive_planner",
+    "git_commit": "72a52829caf958402eb149c73c70467a71204990",
+    "git_dirty": true,
+    "diff_file": "snapshots/git-diff.patch",
+    "remote_repo": "/root/data1/ycl/Experiments/FlowDrive/E26-risk-based-attn-flowdrive",
+    "remote_git_commit": "72a52829caf958402eb149c73c70467a71204990",
+    "remote_git_dirty": false
+  },
+  "data": {
+    "dataset": "nuPlan test14",
+    "dataset_fingerprint": "test14-random/R;test14-random/NR;test14-hard/R;test14-hard/NR",
+    "input_refs": [
+      "/root/data1/ycl/Datasets/nuplan/dataset/nuplan-v1.1/splits/test"
+    ]
+  },
+  "params": {
+    "remote": "24-8V100",
+    "lambda": 0.0,
+    "rep": 2,
+    "kind": "formal_group",
+    "settings": [
+      "test14-random/R",
+      "test14-random/NR",
+      "test14-hard/R",
+      "test14-hard/NR"
+    ],
+    "post_mode": 0,
+    "risk_attn_enabled": true,
+    "ray_per_gpu": 15,
+    "worker_threads_per_node": 120,
+    "number_of_gpus_allocated_per_simulation": 0.0666667
+  },
+  "paths": {
+    "run_dir": "sweeps/2026/20260612/20260612T134944Z__e26-risk-attn-flowdrive__sweep-smoke-lambda__g72a5282__h69e4f2/runs/j003__lambda0-rep2-four-settings__sna__h7ed98d",
+    "logs_dir": "logs",
+    "configs_dir": "configs",
+    "metrics_dir": "metrics",
+    "artifacts_dir": "artifacts"
+  },
+  "metrics": {
+    "primary_metric": "closed_loop_weighted_average_score",
+    "summary_file": "metrics/summary.json"
+  },
+  "external_tracking": {
+    "mlflow_run_id": null,
+    "wandb_run_id": null,
+    "dvc_exp_name": null
+  },
+  "result": {
+    "primary_metric_value": null,
+    "conclusion": null,
+    "failure_reason": null
+  },
+  "notes": [
+    "Formal children run four settings serially because the user defined these four settings as one lambda group.",
+    "Smoke children use direct planner forward on selected test14-hard initial inputs before full closed-loop simulation."
+  ]
+}

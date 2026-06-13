@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "status": "planned",
+  "sweep_id": "20260612T134944Z__e26-risk-attn-flowdrive__sweep-smoke-lambda__g72a5282__h69e4f2",
+  "project_slug": "flow-drive-planner",
+  "created_utc": "2026-06-12T13:49:44Z",
+  "updated_utc": "2026-06-12T13:49:44Z",
+  "task": "e26-risk-attn-flowdrive",
+  "sweep_slug": "smoke-lambda",
+  "question": "Does training-free risk-based cross-attention bias improve FlowDrive closed-loop scores, and does lambda=0 remain baseline-identical?",
+  "hypothesis": "Small positive risk-attention bias may improve collision/TTC behavior in post_mode=0; lambda=0 must be a no-op.",
+  "search_space": {
+    "smoke": [
+      "lambda0 consistency",
+      "lambda5 effect"
+    ],
+    "formal_lambdas": [
+      0.0,
+      0.0,
+      0.0,
+      0.2,
+      0.3,
+      0.5,
+      0.6,
+      0.8,
+      1.0,
+      2.0
+    ],
+    "settings": [
+      "test14-random/R",
+      "test14-random/NR",
+      "test14-hard/R",
+      "test14-hard/NR"
+    ],
+    "post_mode": 0,
+    "worker_threads_per_node": 120,
+    "gpus": 8,
+    "ray_per_gpu": 15,
+    "number_of_gpus_allocated_per_simulation": 0.0666667
+  },
+  "primary_metric": "closed_loop_weighted_average_score",
+  "children": [
+    {
+      "run_id": "j000__smoke-lambda0-consistency-hard3__sna__h6dfc27",
+      "variant": "smoke-lambda0-consistency-hard3",
+      "kind": "smoke_consistency",
+      "lambda": 0.0,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j001__smoke-lambda5-effect-close-front__sna__hf0e4d8",
+      "variant": "smoke-lambda5-effect-close-front",
+      "kind": "smoke_effect",
+      "lambda": 5.0,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j002__lambda0-rep1-four-settings__sna__h304e84",
+      "variant": "lambda0-rep1-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.0,
+      "rep": 1,
+      "status": "planned"
+    },
+    {
+      "run_id": "j003__lambda0-rep2-four-settings__sna__h7ed98d",
+      "variant": "lambda0-rep2-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.0,
+      "rep": 2,
+      "status": "planned"
+    },
+    {
+      "run_id": "j004__lambda0-rep3-four-settings__sna__h6e11fe",
+      "variant": "lambda0-rep3-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.0,
+      "rep": 3,
+      "status": "planned"
+    },
+    {
+      "run_id": "j005__lambda0.2-four-settings__sna__h3a951c",
+      "variant": "lambda0.2-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.2,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j006__lambda0.3-four-settings__sna__ha2672f",
+      "variant": "lambda0.3-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.3,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j007__lambda0.5-four-settings__sna__he40b5e",
+      "variant": "lambda0.5-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.5,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j008__lambda0.6-four-settings__sna__he6e2fc",
+      "variant": "lambda0.6-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.6,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j009__lambda0.8-four-settings__sna__ha8333b",
+      "variant": "lambda0.8-four-settings",
+      "kind": "formal_group",
+      "lambda": 0.8,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j010__lambda1-four-settings__sna__h051bd4",
+      "variant": "lambda1-four-settings",
+      "kind": "formal_group",
+      "lambda": 1.0,
+      "rep": null,
+      "status": "planned"
+    },
+    {
+      "run_id": "j011__lambda2-four-settings__sna__h30e4c6",
+      "variant": "lambda2-four-settings",
+      "kind": "formal_group",
+      "lambda": 2.0,
+      "rep": null,
+      "status": "planned"
+    }
+  ],
+  "code": {
+    "repo_root": "D:/YCL/Scientific/260530_FlowDrive/flow_drive_planner",
+    "git_commit": "72a52829caf958402eb149c73c70467a71204990",
+    "git_dirty": true,
+    "diff_file": "snapshots/git-diff.patch",
+    "remote_repo": "/root/data1/ycl/Experiments/FlowDrive/E26-risk-based-attn-flowdrive",
+    "remote_old_repo": "/root/data1/ycl/Experiments/FlowDrive/FlowDrive",
+    "remote_sweep": "/root/tmp_exp/e26_risk_attn_flowdrive/20260612T134944Z__e26-risk-attn-flowdrive__sweep-smoke-lambda__g72a5282__h69e4f2"
+  },
+  "notes": [
+    "Formal post_mode defaults to 0 because this experiment targets pure model output before PDM post-processing absorbs collision/TTC gains.",
+    "R/NR denotes closed_loop_reactive_agents and closed_loop_nonreactive_agents, not refine/no-refine.",
+    "Local git_dirty is expected because user-added .gitignore ignores experiments; E26 code itself is committed at HEAD.",
+    "Existing remote repo was moved to /root/data1/ycl/Experiments/FlowDrive/FlowDrive per user request; E26 branch is cloned cleanly to /root/data1/ycl/Experiments/FlowDrive/E26-risk-based-attn-flowdrive."
+  ]
+}

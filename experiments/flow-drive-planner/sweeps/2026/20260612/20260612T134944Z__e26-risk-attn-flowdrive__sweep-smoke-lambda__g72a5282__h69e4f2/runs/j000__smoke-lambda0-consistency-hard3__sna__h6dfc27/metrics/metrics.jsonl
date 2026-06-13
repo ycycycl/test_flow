@@ -1,0 +1,3 @@
+{"token": "6db7f9f43c655149", "scenario_type": "near_long_vehicle", "mode": "consistency", "max_abs_trajectory_diff": 0.0, "changed": false, "finite": true, "nearest_front_or_agent_distance_m": 13.617410659790039}
+{"token": "88aa2ad613205556", "scenario_type": "stationary", "mode": "consistency", "max_abs_trajectory_diff": 0.0, "changed": false, "finite": true, "nearest_front_or_agent_distance_m": 12.181299209594727}
+{"token": "a36c1b943871552a", "scenario_type": "near_long_vehicle", "mode": "consistency", "max_abs_trajectory_diff": 0.0, "changed": false, "finite": true, "nearest_front_or_agent_distance_m": 11.785680770874023}

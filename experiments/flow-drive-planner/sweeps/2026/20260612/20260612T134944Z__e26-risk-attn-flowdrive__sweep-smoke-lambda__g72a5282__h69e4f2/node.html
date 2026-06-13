@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>E26 risk-attn FlowDrive sweep notes</title>
+<h1>E26 risk-attn FlowDrive sweep notes</h1>
+<ul>
+  <li>默认将 formal 评估设为 <code>post_mode=0</code>，因为本实验优先验证 risk attention 在无 PDM/refine 后处理时是否有直接闭环收益。</li>
+  <li><code>R/NR</code> 按既有 FlowDrive 记录解释为 <code>closed_loop_reactive_agents</code> 和 <code>closed_loop_nonreactive_agents</code>。</li>
+  <li>八卡每卡 15 Ray 对应 <code>worker.threads_per_node=120</code> 和 <code>number_of_gpus_allocated_per_simulation=0.0666667</code>。</li>
+  <li>远端旧仓库已按用户要求移动到 <code>/root/data1/ycl/Experiments/FlowDrive/FlowDrive</code>；E26 clean clone 使用 <code>/root/data1/ycl/Experiments/FlowDrive/E26-risk-based-attn-flowdrive</code>。</li>
+  <li>正式实验第一次 relaunch 在 j002 的第一个 setting 初始化 Ray 前失败，原因是 <code>RAY_TMPDIR</code> 包含完整 child id 导致 Ray socket 路径超过 Linux AF_UNIX 107 字节限制；未进入仿真。已将每个 setting 的 Ray/TMP 基目录缩短为 <code>/tmp/fdr&lt;job&gt;&lt;split&gt;&lt;mode&gt;</code> 和 <code>/tmp/fdt&lt;job&gt;&lt;split&gt;&lt;mode&gt;</code> 后重新启动。</li>
+  <li>冒烟通过：<code>lambda=0</code> 的 3 个 test14-hard 场景逐位一致，最大轨迹差 <code>0.0</code>；<code>logit_scale=5.0</code> 的近距离前车场景产生明显轨迹变化，最大差 <code>59.523719787597656</code>，无 NaN/报错。</li>
+  <li>正式实验当前状态：第二次 relaunch 的远端 driver PID 为 <code>705367</code>，日志文件为 <code>logs/032_formal_driver_relaunch2.log</code>；检查时 j002/test14-random_R 已进入 <code>Running simulation...</code>，GPU 有活动，尚未发现 Traceback/CUDA OOM/NaN。</li>
+  <li>2026-06-13 结果整理：正式 sweep 已完成，合并指标写入 <code>metrics/formal_lambda_summary.csv</code>、<code>metrics/formal_setting_scores.csv</code>、<code>metrics/formal_results.json</code> 和 <code>metrics/analysis.md</code>。归档前删除所有 <code>logs/</code> 与 <code>artifacts/</code> 目录以释放空间，只保留汇总指标、per-run summary、登记文件和复现配置。</li>
+</ul>

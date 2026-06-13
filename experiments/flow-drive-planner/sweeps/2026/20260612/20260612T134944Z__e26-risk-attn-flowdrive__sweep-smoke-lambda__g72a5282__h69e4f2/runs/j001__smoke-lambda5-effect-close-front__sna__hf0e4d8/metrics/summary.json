@@ -1,0 +1,19 @@
+{
+  "status": "completed",
+  "mode": "effect",
+  "primary_metric": "max_abs_trajectory_diff",
+  "primary_metric_value": 59.523719787597656,
+  "higher_is_better": true,
+  "passed": true,
+  "records": [
+    {
+      "token": "442523fcce0950e8",
+      "scenario_type": "following_lane_with_lead",
+      "mode": "effect",
+      "max_abs_trajectory_diff": 59.523719787597656,
+      "changed": true,
+      "finite": true,
+      "nearest_front_or_agent_distance_m": 12.505080223083496
+    }
+  ]
+}
