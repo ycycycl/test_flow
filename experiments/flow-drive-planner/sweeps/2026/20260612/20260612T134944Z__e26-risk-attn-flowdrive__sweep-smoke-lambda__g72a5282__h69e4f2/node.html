@@ -11,4 +11,5 @@
   <li>冒烟通过：<code>lambda=0</code> 的 3 个 test14-hard 场景逐位一致，最大轨迹差 <code>0.0</code>；<code>logit_scale=5.0</code> 的近距离前车场景产生明显轨迹变化，最大差 <code>59.523719787597656</code>，无 NaN/报错。</li>
   <li>正式实验当前状态：第二次 relaunch 的远端 driver PID 为 <code>705367</code>，日志文件为 <code>logs/032_formal_driver_relaunch2.log</code>；检查时 j002/test14-random_R 已进入 <code>Running simulation...</code>，GPU 有活动，尚未发现 Traceback/CUDA OOM/NaN。</li>
   <li>2026-06-13 结果整理：正式 sweep 已完成，合并指标写入 <code>metrics/formal_lambda_summary.csv</code>、<code>metrics/formal_setting_scores.csv</code>、<code>metrics/formal_results.json</code> 和 <code>metrics/analysis.md</code>。归档前删除所有 <code>logs/</code> 与 <code>artifacts/</code> 目录以释放空间，只保留汇总指标、per-run summary、登记文件和复现配置。</li>
+  <li>2026-06-13 指标更正：formal 汇总脚本误把 nuPlan aggregator parquet 的第一条 scenario-level 记录当作整个 setting 的汇总分数；因此 <code>metrics/formal_lambda_summary.csv</code>、<code>metrics/formal_setting_scores.csv</code>、<code>metrics/formal_results.json</code> 和此前 <code>analysis.md</code> 中的 formal 分数无效。由于 raw parquet/log artifacts 已在瘦身归档时删除，归档内无法重算官方 formal 指标；smoke gate 结果仍有效。</li>
 </ul>
